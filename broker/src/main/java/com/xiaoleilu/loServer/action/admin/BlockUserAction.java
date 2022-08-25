@@ -14,10 +14,9 @@ import com.xiaoleilu.loServer.RestResult;
 import com.xiaoleilu.loServer.annotation.HttpMethod;
 import com.xiaoleilu.loServer.annotation.Route;
 import com.xiaoleilu.loServer.handler.Request;
-import com.xiaoleilu.loServer.handler.Response;
 import cn.wildfirechat.pojos.InputOutputUserBlockStatus;
-import io.moquette.persistence.RPCCenter;
-import io.moquette.persistence.TargetEntry;
+import com.xiaoleilu.loServer.handler.Response;
+import io.moquette.persistence.ServerAPIHelper;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.internal.StringUtil;
@@ -46,14 +45,12 @@ public class BlockUserAction extends AdminAction {
                 response.setContent(new Gson().toJson(result));
 
                 if (inputUserBlock.getStatus() == 2) {
-                    RPCCenter.getInstance().sendRequest(null, null, RPCCenter.KICKOFF_USER_REQUEST, inputUserBlock.getUserId().getBytes(), inputUserBlock.getUserId(), TargetEntry.Type.TARGET_TYPE_USER, null, true);
+                    sendApiMessage(null, null, ServerAPIHelper.KICKOFF_USER_REQUEST, inputUserBlock.getUserId().getBytes(), null);
                 }
 
                 sendResponse(response, ErrorCode.ERROR_CODE_SUCCESS, null);
             } else {
-                response.setStatus(HttpResponseStatus.OK);
-                RestResult result = RestResult.resultOf(ErrorCode.INVALID_PARAMETER);
-                response.setContent(new Gson().toJson(result));
+                setResponseContent(RestResult.resultOf(ErrorCode.INVALID_PARAMETER), response);
             }
 
         }

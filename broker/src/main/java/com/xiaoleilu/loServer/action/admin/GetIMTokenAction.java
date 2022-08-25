@@ -13,22 +13,21 @@ import cn.wildfirechat.proto.WFCMessage;
 import com.xiaoleilu.loServer.annotation.HttpMethod;
 import com.xiaoleilu.loServer.annotation.Route;
 import com.xiaoleilu.loServer.handler.Request;
-import com.xiaoleilu.loServer.handler.Response;
 import cn.wildfirechat.pojos.InputGetToken;
 import cn.wildfirechat.pojos.OutputGetIMTokenData;
-import io.moquette.persistence.RPCCenter;
-import io.moquette.persistence.TargetEntry;
+import com.xiaoleilu.loServer.handler.Response;
 import io.netty.handler.codec.http.FullHttpRequest;
 import cn.wildfirechat.common.ErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import win.liyufan.im.IMTopic;
 
 import java.util.Base64;
-import java.util.concurrent.Executor;
 
 @Route(APIPath.User_Get_Token)
 @HttpMethod("POST")
 public class GetIMTokenAction extends AdminAction {
-
+    private static final Logger LOG = LoggerFactory.getLogger(GetIMTokenAction.class);
     @Override
     public boolean isTransactionAction() {
         return false;
@@ -41,42 +40,24 @@ public class GetIMTokenAction extends AdminAction {
             String userId = input.getUserId();
 
 
-            WFCMessage.GetTokenRequest getTokenRequest = WFCMessage.GetTokenRequest.newBuilder().setUserId(userId).setClientId(input.getClientId()).build();
-            RPCCenter.getInstance().sendRequest(userId, input.getClientId(), IMTopic.GetTokenTopic, getTokenRequest.toByteArray(), userId, TargetEntry.Type.TARGET_TYPE_USER, new RPCCenter.Callback() {
-                @Override
-                public void onSuccess(byte[] result) {
-                    ErrorCode errorCode1 = ErrorCode.fromCode(result[0]);
-                    if (errorCode1 == ErrorCode.ERROR_CODE_SUCCESS) {
-                        //ba errorcode qudiao
-                        byte[] data = new byte[result.length -1];
-                        for (int i = 0; i < data.length; i++) {
-                            data[i] = result[i+1];
-                        }
-                        String token = Base64.getEncoder().encodeToString(data);
-
-                        sendResponse(response, null, new OutputGetIMTokenData(userId, token));
-                    } else {
-                        sendResponse(response, errorCode1, null);
+            WFCMessage.GetTokenRequest getTokenRequest = WFCMessage.GetTokenRequest.newBuilder().setUserId(userId).setClientId(input.getClientId()).setPlatform(input.getPlatform() == null ? 0 : input.getPlatform()).build();
+            sendApiMessage(response, userId, input.getClientId(), IMTopic.GetTokenTopic, getTokenRequest.toByteArray(), result -> {
+                ErrorCode errorCode1 = ErrorCode.fromCode(result[0]);
+                if (errorCode1 == ErrorCode.ERROR_CODE_SUCCESS) {
+                    //ba errorcode qudiao
+                    byte[] data = new byte[result.length -1];
+                    for (int i = 0; i < data.length; i++) {
+                        data[i] = result[i+1];
                     }
-                }
+                    String token = Base64.getEncoder().encodeToString(data);
 
-                @Override
-                public void onError(ErrorCode errorCode) {
-                    sendResponse(response, errorCode, null);
+                    LOG.info("get im token success {},{},{}", userId, input.getClientId(), token.substring(0, Math.min(10, token.length())));
+                    
+                    return new Result(errorCode1, new OutputGetIMTokenData(userId, token));
+                } else {
+                    return new Result(errorCode1);
                 }
-
-                @Override
-                public void onTimeout() {
-                    sendResponse(response, ErrorCode.ERROR_CODE_TIMEOUT, null);
-                }
-
-                @Override
-                public Executor getResponseExecutor() {
-                    return command -> {
-                        ctx.executor().execute(command);
-                    };
-                }
-            }, true);
+            }, false);
             return false;
         }
         return true;

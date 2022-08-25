@@ -9,6 +9,8 @@
 package com.xiaoleilu.loServer.action.admin;
 
 import cn.wildfirechat.common.APIPath;
+import cn.wildfirechat.common.IMExceptionEvent;
+import cn.wildfirechat.proto.ProtoConstants;
 import cn.wildfirechat.proto.WFCMessage;
 import com.google.gson.Gson;
 import com.xiaoleilu.loServer.RestResult;
@@ -22,11 +24,15 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.internal.StringUtil;
 import cn.wildfirechat.common.ErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import win.liyufan.im.UUIDGenerator;
+import win.liyufan.im.Utility;
 
 @Route(APIPath.Create_User)
 @HttpMethod("POST")
 public class CreateUserAction extends AdminAction {
+    private static final Logger LOG = LoggerFactory.getLogger(CreateUserAction.class);
 
     @Override
     public boolean isTransactionAction() {
@@ -38,7 +44,8 @@ public class CreateUserAction extends AdminAction {
         if (request.getNettyRequest() instanceof FullHttpRequest) {
             InputOutputUserInfo inputCreateUser = getRequestBody(request.getNettyRequest(), InputOutputUserInfo.class);
             if (inputCreateUser != null
-                && !StringUtil.isNullOrEmpty(inputCreateUser.getName())) {
+                && !StringUtil.isNullOrEmpty(inputCreateUser.getName())
+                && (inputCreateUser.getType() == ProtoConstants.UserType.UserType_Normal || inputCreateUser.getType() == ProtoConstants.UserType.UserType_Admin || inputCreateUser.getType() == ProtoConstants.UserType.UserType_Super_Admin)) {
 
                 if(StringUtil.isNullOrEmpty(inputCreateUser.getPassword())) {
                     inputCreateUser.setPassword(UUIDGenerator.getUUID());
@@ -73,17 +80,22 @@ public class CreateUserAction extends AdminAction {
                 if (inputCreateUser.getExtra() != null)
                     newUserBuilder.setExtra(inputCreateUser.getExtra());
 
+                newUserBuilder.setType(inputCreateUser.getType());
                 newUserBuilder.setUpdateDt(System.currentTimeMillis());
 
-                messagesStore.addUserInfo(newUserBuilder.build(), inputCreateUser.getPassword());
 
-                response.setStatus(HttpResponseStatus.OK);
-                RestResult result = RestResult.ok(new OutputCreateUser(inputCreateUser.getUserId(), inputCreateUser.getName()));
-                response.setContent(new Gson().toJson(result));
+                try {
+                    messagesStore.addUserInfo(newUserBuilder.build(), inputCreateUser.getPassword());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Utility.printExecption(LOG, e, IMExceptionEvent.EventType.ADMIN_API_Exception);
+                    setResponseContent(RestResult.resultOf(ErrorCode.ERROR_CODE_SERVER_ERROR, e.getMessage()), response);
+                    return true;
+                }
+
+                setResponseContent(RestResult.ok(new OutputCreateUser(inputCreateUser.getUserId(), inputCreateUser.getName())), response);
             } else {
-                response.setStatus(HttpResponseStatus.OK);
-                RestResult result = RestResult.resultOf(ErrorCode.INVALID_PARAMETER);
-                response.setContent(new Gson().toJson(result));
+                setResponseContent(RestResult.resultOf(ErrorCode.INVALID_PARAMETER), response);
             }
 
         }

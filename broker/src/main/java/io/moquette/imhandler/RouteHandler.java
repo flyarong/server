@@ -8,31 +8,46 @@
 
 package io.moquette.imhandler;
 
+import cn.wildfirechat.proto.ProtoConstants;
 import cn.wildfirechat.proto.WFCMessage;
 import com.hazelcast.core.Member;
+import io.moquette.persistence.MemorySessionStore;
 import io.moquette.spi.ClientSession;
 import io.moquette.spi.impl.Qos1PublishHandler;
 import io.netty.buffer.ByteBuf;
 import cn.wildfirechat.common.ErrorCode;
 import win.liyufan.im.IMTopic;
 
-import static io.moquette.BrokerConstants.HZ_Cluster_Node_External_IP;
-import static io.moquette.BrokerConstants.HZ_Cluster_Node_External_Long_Port;
-import static io.moquette.BrokerConstants.HZ_Cluster_Node_External_Short_Port;
-
 @Handler(IMTopic.RouteTopic)
 public class RouteHandler extends IMHandler<WFCMessage.RouteRequest> {
     @Override
-    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, boolean isAdmin, WFCMessage.RouteRequest request, Qos1PublishHandler.IMCallback callback) {
-        Member member = mServer.getHazelcastInstance().getCluster().getLocalMember();
-        String serverIp = member.getStringAttribute(HZ_Cluster_Node_External_IP);
-        String longPort = member.getStringAttribute(HZ_Cluster_Node_External_Long_Port);
-        String shortPort = member.getStringAttribute(HZ_Cluster_Node_External_Short_Port);
+    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, ProtoConstants.RequestSourceType requestSourceType, WFCMessage.RouteRequest request, Qos1PublishHandler.IMCallback callback) {
+        MemorySessionStore.Session session = m_sessionsStore.sessionForClientAndUser(fromUser, clientID);
+        if (session == null) {
+            ErrorCode errorCode = m_sessionsStore.loadActiveSession(fromUser, clientID);
+            if (errorCode != ErrorCode.ERROR_CODE_SUCCESS) {
+                return errorCode;
+            }
+            session = m_sessionsStore.sessionForClientAndUser(fromUser, clientID);
+        }
+
+        if (session == null || session.getDeleted() > 0) {
+            if(session == null) {
+                LOG.error("Session for <{}, {}> not exist", fromUser, clientID);
+            } else {
+                LOG.error("Session for <{}, {}> deleted", fromUser, clientID);
+            }
+            return ErrorCode.ERROR_CODE_SECRECT_KEY_MISMATCH;
+        }
+
+        String serverIp = mServer.getServerIp();
+        String longPort = mServer.getLongPort();
+        String shortPort = mServer.getShortPort();
 
         ClientSession clientSession = m_sessionsStore.sessionForClient(clientID);
         boolean isSessionAlreadyStored = clientSession != null;
         if (!isSessionAlreadyStored) {
-            m_sessionsStore.createNewSession(fromUser, clientID, true, true);
+            m_sessionsStore.loadActiveSession(fromUser, clientID);
         } else {
             m_sessionsStore.updateExistSession(fromUser, clientID, request, true);
         }

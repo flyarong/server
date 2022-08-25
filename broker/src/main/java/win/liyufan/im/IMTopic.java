@@ -12,9 +12,12 @@ public interface IMTopic {
 	String SendMessageTopic = "MS";
     String MultiCastMessageTopic = "MMC";
     String RecallMessageTopic = "MR";
+    String RecallMultiCastMessageTopic = "MRMC";
 	String PullMessageTopic = "MP";
 	String NotifyMessageTopic = "MN";
     String NotifyRecallMessageTopic = "RMN";
+    String NotifyOffline = "ROFL";
+
     String BroadcastMessageTopic = "MBC";
 
     String GetUserSettingTopic = "UG";
@@ -28,6 +31,8 @@ public interface IMTopic {
 	String DismissGroupTopic = "GD";
 	String ModifyGroupInfoTopic = "GMI";
     String ModifyGroupAliasTopic = "GMA";
+    String ModifyGroupMemberAliasTopic = "GMMA";
+    String ModifyGroupMemberExtraTopic = "GMME";
     String GetGroupInfoTopic = "GPGI";
     String GetGroupMemberTopic = "GPGM";
     String TransferGroupTopic = "GTG";
@@ -35,6 +40,7 @@ public interface IMTopic {
 
     String GetUserInfoTopic = "UPUI";
     String ModifyMyInfoTopic = "MMI";
+    String NotifyUserInfoTopic = "UIN";
 
 	String GetQiniuUploadTokenTopic = "GQNUT";
 
@@ -65,12 +71,19 @@ public interface IMTopic {
     String CreateChannelTopic = "CHC";
     String ModifyChannelInfoTopic = "CHMI";
     String TransferChannelInfoTopic = "CHT";
-    String DestoryChannelInfoTopic = "CHD";
+    String DestroyChannelInfoTopic = "CHD";
     String ChannelSearchTopic = "CHS";
     String ChannelListenTopic = "CHL";
     String ChannelPullTopic = "CHP";
 
     String GetTokenTopic = "GETTOKEN";
+    String DestroyUserTopic = "DESTROYUSER";
 
     String LoadRemoteMessagesTopic = "LRM";
+    String KickoffPCClientTopic = "KPCC";
+
+    String ClearSessionTopic = "CST";
+
+    String GetApplicationTokenRequestTopic = "ATR";
+    String ApplicationConfigRequestTopic = "ACR";
 }

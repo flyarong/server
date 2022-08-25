@@ -1,11 +1,7 @@
 package com.xiaoleilu.loServer.handler;
 
-import java.io.IOException;
-
-import com.hazelcast.core.HazelcastInstance;
+import cn.wildfirechat.common.IMExceptionEvent;
 import com.xiaoleilu.hutool.lang.Singleton;
-import com.xiaoleilu.hutool.log.Log;
-import com.xiaoleilu.hutool.log.StaticLog;
 import com.xiaoleilu.loServer.ServerSetting;
 import com.xiaoleilu.loServer.action.Action;
 import com.xiaoleilu.loServer.action.UnknownErrorAction;
@@ -21,6 +17,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import win.liyufan.im.Utility;
 
 /**
  * Action处理单元
@@ -51,6 +48,8 @@ abstract public class ActionHandler extends SimpleChannelInboundHandler<FullHttp
 				this.doAction(ctx, request, response);
 			}
 		} catch (Exception e) {
+		    e.printStackTrace();
+            Utility.printExecption(Logger, e, IMExceptionEvent.EventType.SHORT_LINK_Exception);
 			Action errorAction = ServerSetting.getErrorAction(ServerSetting.MAPPING_ERROR);
 			request.putParam(UnknownErrorAction.ERROR_PARAM_NAME, e);
 			response.setContent(e.toString());
@@ -110,10 +109,18 @@ abstract public class ActionHandler extends SimpleChannelInboundHandler<FullHttp
 	 * @param response 响应对象
 	 */
 	private void doAction(ChannelHandlerContext ctx, Request request, Response response){
-	    if( "/route".equalsIgnoreCase(request.getPath()) && "OPTIONS".equalsIgnoreCase(request.getMethod())){
+	    if(("/route".equalsIgnoreCase(request.getPath()) || request.getPath().startsWith("/fs/"))
+            && "OPTIONS".equalsIgnoreCase(request.getMethod())){
 	        handleOptions(ctx, request, response);
 	        return;
         }
+
+        if ("HEAD".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpResponseStatus.OK);
+            response.send();
+            return;
+        }
+
 		Action action;
 		if (isValidePath(request.getPath())) {
             action = ServerSetting.getAction(request.getPath(), request.getMethod().toUpperCase());

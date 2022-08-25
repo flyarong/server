@@ -1,3 +1,7 @@
+
+<!--    # 本配置文件为debug使用，修改这里不会在Release包中生效。Release中包含的配置文件在 ${Porject_Path}/distribution/src/main/resources目录下-->
+
+
 <hazelcast
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.hazelcast.com/schema/config
@@ -8,6 +12,10 @@
             <multicast enabled="false"/>
         </join>
     </network>
+
+    <properties>
+        <property name="hazelcast.logging.type">slf4j</property>
+    </properties>
 
     <!-- map eviction -->
     <!-- http://docs.hazelcast.org/docs/latest-development/manual/html/Distributed_Data_Structures/Map/Map_Eviction.html -->
@@ -57,6 +65,15 @@
         </map-store>
     </map>
 
+    <map name="user_friends_empty">
+        <time-to-live-seconds>86400</time-to-live-seconds>
+        <eviction-policy>LRU</eviction-policy>
+        <max-size policy="PER_NODE">1000000</max-size>
+        <eviction-percentage>10</eviction-percentage>
+    </map>
+
+
+
     <set name="node_ids"/>
 
     <multimap name="user_setting">
@@ -77,6 +94,12 @@
     <map name="user_chatroom">
     </map>
 
+    <multimap name="chatroom_black">
+    </multimap>
+
+    <multimap name="chatroom_manager">
+    </multimap>
+
     <map name="robots">
         <!-- 7 days -->
         <time-to-live-seconds>604800</time-to-live-seconds>
@@ -88,14 +111,23 @@
             <write-delay-seconds>0</write-delay-seconds>
         </map-store>
     </map>
-
-    <map name="things">
+    
+    <map name="devices">
+        <!-- 7 days -->
+        <time-to-live-seconds>604800</time-to-live-seconds>
+        <eviction-policy>LRU</eviction-policy>
+        <max-size policy="PER_NODE">1000000</max-size>
+        <eviction-percentage>10</eviction-percentage>
+        <map-store enabled="true">
+            <class-name>io.moquette.persistence.DeviceLoader</class-name>
+            <write-delay-seconds>0</write-delay-seconds>
+        </map-store>
     </map>
 
     <multimap name="user_robots">
     </multimap>
 
-    <multimap name="user_things">
+    <multimap name="user_devices">
     </multimap>
 
     <multimap name="chatroom_members">

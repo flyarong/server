@@ -8,6 +8,7 @@
 
 package io.moquette.imhandler;
 
+import cn.wildfirechat.proto.ProtoConstants;
 import cn.wildfirechat.proto.WFCMessage;
 import io.moquette.spi.impl.Qos1PublishHandler;
 import io.netty.buffer.ByteBuf;
@@ -19,10 +20,10 @@ import static cn.wildfirechat.common.ErrorCode.ERROR_CODE_SUCCESS;
 @Handler(IMTopic.GetUserInfoTopic)
 public class GetUserInfoHandler extends IMHandler<WFCMessage.PullUserRequest> {
     @Override
-    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, boolean isAdmin, WFCMessage.PullUserRequest request, Qos1PublishHandler.IMCallback callback) {
+    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, ProtoConstants.RequestSourceType requestSourceType, WFCMessage.PullUserRequest request, Qos1PublishHandler.IMCallback callback) {
         WFCMessage.PullUserResult.Builder resultBuilder = WFCMessage.PullUserResult.newBuilder();
 
-        ErrorCode errorCode = m_messagesStore.getUserInfo(request.getRequestList(), resultBuilder);
+        ErrorCode errorCode = m_messagesStore.getUserInfo(fromUser, request.getRequestList(), resultBuilder);
         if (errorCode == ERROR_CODE_SUCCESS) {
             byte[] data = resultBuilder.build().toByteArray();
             ackPayload.ensureWritable(data.length).writeBytes(data);

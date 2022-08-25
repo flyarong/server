@@ -32,13 +32,13 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.*;
 
 import static cn.wildfirechat.common.ErrorCode.ERROR_CODE_OVER_FREQUENCY;
 import static cn.wildfirechat.common.ErrorCode.ERROR_CODE_SUCCESS;
+import static io.moquette.BrokerConstants.CLIENT_REQUEST_RATE_LIMIT;
 
 /**
  * 请求处理接口<br>
@@ -53,7 +53,7 @@ abstract public class IMHandler<T> {
     protected static Server mServer = null;
     protected static MessagesPublisher publisher;
     private static ThreadPoolExecutorWrapper m_imBusinessExecutor;
-    private static final RateLimiter mLimitCounter = new RateLimiter(5, 100);
+    private static RateLimiter mLimitCounter;
     private Method parseDataMethod;
     private Class dataCls;
 
@@ -63,6 +63,9 @@ abstract public class IMHandler<T> {
 
     protected static String actionName;
 
+    public static MessagesPublisher getPublisher() {
+        return publisher;
+    }
 
     public IMHandler() {
         try {
@@ -83,16 +86,11 @@ abstract public class IMHandler<T> {
                 }
             }
 
-
-            for (Method method : getClass().getDeclaredMethods()
-                 ) {
-
-                if (method.getName() == actionName && method.getParameterCount() == 6) {
-                    dataCls = method.getParameterTypes()[4];
-                    break;
-                }
-            }
-
+            Type t = getClass().getGenericSuperclass();
+            ParameterizedType p = (ParameterizedType) t ;
+            Class<T> c = (Class<T>) p.getActualTypeArguments()[0];
+            dataCls = c;
+            
             if (dataCls.getSuperclass().equals(GeneratedMessage.class)) {
                 parseDataMethod = dataCls.getMethod("parseFrom", byte[].class);
             } else if (dataCls.isPrimitive()) {
@@ -150,26 +148,30 @@ abstract public class IMHandler<T> {
         publisher = p;
         m_imBusinessExecutor = businessExecutor;
         mServer = server;
+        int clientRateLimit = 100;
+        try {
+            clientRateLimit = Integer.parseInt(server.getConfig().getProperty(CLIENT_REQUEST_RATE_LIMIT, "100"));
+        } catch (Exception e) {
+
+        }
+
+        if(clientRateLimit == 0) {
+            clientRateLimit = 100;
+        }
+
+        mLimitCounter = new RateLimiter(5, clientRateLimit);
     }
 
 
-    public ErrorCode preAction(String clientID, String fromUser, String topic, Qos1PublishHandler.IMCallback callback) {
+    public ErrorCode preAction(String clientID, String fromUser, String topic, Qos1PublishHandler.IMCallback callback, ProtoConstants.RequestSourceType requestSourceType) {
         LOG.info("imHandler fromUser={}, clientId={}, topic={}", fromUser, clientID, topic);
-        if(!mLimitCounter.isGranted(clientID + fromUser + topic)) {
-            ByteBuf ackPayload = Unpooled.buffer();
-            ackPayload.ensureWritable(1).writeByte(ERROR_CODE_OVER_FREQUENCY.getCode());
-            try {
-                callback.onIMHandled(ERROR_CODE_OVER_FREQUENCY, ackPayload);
-            } catch (Exception e) {
-                e.printStackTrace();
-                Utility.printExecption(LOG, e);
-            }
+        if(requestSourceType == ProtoConstants.RequestSourceType.Request_From_User && !mLimitCounter.isGranted(clientID + fromUser + topic)) {
             return ErrorCode.ERROR_CODE_OVER_FREQUENCY;
         }
         return ErrorCode.ERROR_CODE_SUCCESS;
     }
 
-	public void doHandler(String clientID, String fromUser, String topic, byte[] payloadContent, Qos1PublishHandler.IMCallback callback, boolean isAdmin) {
+	public void doHandler(String clientID, String fromUser, String topic, byte[] payloadContent, Qos1PublishHandler.IMCallback callback, ProtoConstants.RequestSourceType requestSourceType) {
         m_imBusinessExecutor.execute(() -> {
             Qos1PublishHandler.IMCallback callbackWrapper = new Qos1PublishHandler.IMCallback() {
                 @Override
@@ -180,7 +182,7 @@ abstract public class IMHandler<T> {
                 }
             };
 
-            ErrorCode preActionCode = preAction(clientID, fromUser, topic, callbackWrapper);
+            ErrorCode preActionCode = preAction(clientID, fromUser, topic, callbackWrapper, requestSourceType);
 
             if (preActionCode == ErrorCode.ERROR_CODE_SUCCESS) {
                 ByteBuf ackPayload = Unpooled.buffer(1);
@@ -189,7 +191,7 @@ abstract public class IMHandler<T> {
 
                 try {
                     LOG.debug("execute handler for topic {}", topic);
-                    errorCode = action(ackPayload, clientID, fromUser, isAdmin, getDataObject(payloadContent), callbackWrapper);
+                    errorCode = action(ackPayload, clientID, fromUser, requestSourceType, getDataObject(payloadContent), callbackWrapper);
                 } catch (IllegalAccessException e) {
                     e.printStackTrace();
                     Utility.printExecption(LOG, e);
@@ -207,8 +209,9 @@ abstract public class IMHandler<T> {
                         errorCode = ErrorCode.ERROR_CODE_SERVER_ERROR;
                     }
                 }
-
-                response(ackPayload, errorCode, callback);
+                if(errorCode != ErrorCode.INVALID_ASYNC_HANDLING) {
+                    response(ackPayload, errorCode, callback);
+                }
             } else {
                 LOG.error("Handler {} preAction failure", this.getClass().getName());
                 ByteBuf ackPayload = Unpooled.buffer(1);
@@ -230,27 +233,27 @@ abstract public class IMHandler<T> {
 
 
     @ActionMethod
-    abstract public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, boolean isAdmin, T request, Qos1PublishHandler.IMCallback callback)   ;
+    abstract public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, ProtoConstants.RequestSourceType requestSourceType, T request, Qos1PublishHandler.IMCallback callback)   ;
 
     public void afterAction(String clientID, String fromUser, String topic, Qos1PublishHandler.IMCallback callback) {
 
     }
-    protected long publish(String username, String clientID, WFCMessage.Message message) {
+    protected long publish(String username, String clientID, WFCMessage.Message message, ProtoConstants.RequestSourceType requestSourceType) {
         Set<String> notifyReceivers = new LinkedHashSet<>();
 
         WFCMessage.Message.Builder messageBuilder = message.toBuilder();
-        int pullType = m_messagesStore.getNotifyReceivers(username, messageBuilder, notifyReceivers);
-        this.publisher.publish2Receivers(messageBuilder.build(), notifyReceivers, clientID, pullType);
+        int pullType = m_messagesStore.getNotifyReceivers(username, messageBuilder, notifyReceivers, requestSourceType);
+        mServer.getImBusinessScheduler().execute(() -> this.publisher.publish2Receivers(messageBuilder.build(), notifyReceivers, clientID, pullType));
         return notifyReceivers.size();
     }
 
-    protected long saveAndPublish(String username, String clientID, WFCMessage.Message message) {
+    protected long saveAndPublish(String username, String clientID, WFCMessage.Message message, ProtoConstants.RequestSourceType requestSourceType) {
         Set<String> notifyReceivers = new LinkedHashSet<>();
 
         message = m_messagesStore.storeMessage(username, clientID, message);
         WFCMessage.Message.Builder messageBuilder = message.toBuilder();
-        int pullType = m_messagesStore.getNotifyReceivers(username, messageBuilder, notifyReceivers);
-        this.publisher.publish2Receivers(messageBuilder.build(), notifyReceivers, clientID, pullType);
+        int pullType = m_messagesStore.getNotifyReceivers(username, messageBuilder, notifyReceivers, requestSourceType);
+        mServer.getImBusinessScheduler().execute(() -> this.publisher.publish2Receivers(messageBuilder.build(), notifyReceivers, clientID, pullType));
         return notifyReceivers.size();
     }
 
@@ -266,6 +269,15 @@ abstract public class IMHandler<T> {
         notifyReceivers.addAll(targets);
         WFCMessage.Message updatedMessage = m_messagesStore.storeMessage(username, clientID, message);
         mServer.getImBusinessScheduler().execute(() -> publisher.publish2Receivers(updatedMessage, notifyReceivers, clientID, ProtoConstants.PullType.Pull_Normal));
+        return notifyReceivers.size();
+    }
+    protected long publishRecallMultiCastMsg(long messageUid, List<String> receivers) {
+        WFCMessage.Message updatedMessage = m_messagesStore.getMessage(messageUid);
+
+        Set<String> notifyReceivers = new HashSet<>(receivers);
+        LOG.info("Multicast recall receiver count: {}", notifyReceivers.size());
+        mServer.getImBusinessScheduler().execute(() -> publisher.publish2Receivers(updatedMessage, notifyReceivers, null, ProtoConstants.PullType.Pull_Normal));
+
         return notifyReceivers.size();
     }
 }

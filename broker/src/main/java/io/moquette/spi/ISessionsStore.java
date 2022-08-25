@@ -38,15 +38,21 @@ public interface ISessionsStore {
      */
     boolean contains(String clientID);
 
-    Session createUserSession(String username, String clientID);
+    Session updateOrCreateUserSession(String username, String clientID, int platform);
 
-    ErrorCode createNewSession(String username, String clientID, boolean cleanSession, boolean createNoExist);
+    ErrorCode loadActiveSession(String username, String clientID);
 
     ClientSession updateExistSession(String username, String clientID, WFCMessage.RouteRequest endpoint, boolean cleanSession);
 
     Session getSession(String clientID);
 
+    void cleanDuplatedToken(String cid, int pushType, String token, boolean isVoip, String packageName);
+
     void updateSessionToken(Session session, boolean voip);
+
+    void clearUserSession(String username);
+
+    void kickoffUserClient(String userId, String clientId);
     /**
      * @param clientID
      *            the client owning the session.
@@ -144,5 +150,10 @@ public interface ISessionsStore {
      */
     int getSecondPhaseAckPendingMessages(String clientID);
 
-    void cleanSession(String clientID);
+    void disableSession(String userId, String clientId);
+    void cleanSession(String userId, String clientID);
+
+    boolean isMultiEndpointSupported();
+
+    ErrorCode kickoffPCClient(String operator, String pcClientId);
 }

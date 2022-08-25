@@ -37,14 +37,28 @@ class PersistentQueueMessageSender {
         this.connectionDescriptorStore = connectionDescriptorStore;
     }
 
-    void sendPush(String sender, int conversationType, String target, int line, long messageHead, String deviceId, String pushContent, int messageContentType, long serverTime, String senderName, String targetName, int unReceivedMsg, int mentionType, boolean isHiddenDetail, String language) {
+    void sendPush(String sender, int conversationType, String target, int line, long messageId, String deviceId, String pushContent, String pushData, int messageContentType, long serverTime, String senderName, String targetName, int unReceivedMsg, int mentionType, boolean isHiddenDetail, String language) {
         LOG.info("Send push to {}, message from {}", deviceId, sender);
         PushMessage pushMessage = new PushMessage(sender, conversationType, target, line, messageContentType, serverTime, senderName, targetName, unReceivedMsg, mentionType, isHiddenDetail, language);
+        pushMessage.pushContent = pushContent;
+        pushMessage.pushData = pushData;
+        pushMessage.messageId = messageId;
+        PushServer.getServer().pushMessage(pushMessage, deviceId, pushContent);
+    }
+
+    void sendPush(String sender, String target, String deviceId, String pushContent, int pushContentType, long serverTime, String senderName, int unReceivedMsg, String language) {
+        LOG.info("Send push to {}, message from {}", deviceId, sender);
+        PushMessage pushMessage = new PushMessage(sender, target, serverTime, senderName, unReceivedMsg, language, pushContentType);
+        pushMessage.pushContent = pushContent;
         PushServer.getServer().pushMessage(pushMessage, deviceId, pushContent);
     }
 
     boolean sendPublish(ClientSession clientsession, MqttPublishMessage pubMessage) {
         String clientId = clientsession.clientID;
+        return sendPublish(clientId, pubMessage);
+    }
+
+    boolean sendPublish(String clientId, MqttPublishMessage pubMessage) {
         final int messageId = pubMessage.variableHeader().packetId();
         final String topicName = pubMessage.variableHeader().topicName();
         if (LOG.isDebugEnabled()) {

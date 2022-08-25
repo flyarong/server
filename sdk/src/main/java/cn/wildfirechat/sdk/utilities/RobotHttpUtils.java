@@ -3,13 +3,18 @@ package cn.wildfirechat.sdk.utilities;
 import cn.wildfirechat.sdk.model.IMResult;
 import com.google.gson.Gson;
 import ikidou.reflect.TypeBuilder;
+import io.netty.util.internal.StringUtil;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,32 +22,43 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
+import java.util.concurrent.TimeUnit;
 
 
-public class RobotHttpUtils {
+public class RobotHttpUtils extends JsonUtils {
     private static final Logger LOG = LoggerFactory.getLogger(RobotHttpUtils.class);
 
-    private static String url;
-    private static String robotId;
-    private static String robotSecret;
+    private final String url;
+    private final String robotId;
+    private final String robotSecret;
+    private final CloseableHttpClient httpClient;
 
-    public static void init(String url, String robotId, String secret) {
-        RobotHttpUtils.url = url;
-        RobotHttpUtils.robotId = robotId;
-        RobotHttpUtils.robotSecret = secret;
+    public RobotHttpUtils(String url, String robotId, String robotSecret) {
+        this.url = url;
+        this.robotId = robotId;
+        this.robotSecret = robotSecret;
+        PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
+        cm.setValidateAfterInactivity(1000);
+        httpClient = HttpClients.custom()
+            .setConnectionManager(cm)
+            .evictExpiredConnections()
+            .evictIdleConnections(60L, TimeUnit.SECONDS)
+            .setRetryHandler(DefaultHttpRequestRetryHandler.INSTANCE)
+            .setMaxConnTotal(100)
+            .setMaxConnPerRoute(50)
+            .build();
     }
 
-    public static <T> IMResult<T> httpJsonPost(String path, Object object, Class<T> clazz) throws Exception{
+
+    public <T> IMResult<T> httpJsonPost(String path, Object object, Class<T> clazz) throws Exception{
         if (isNullOrEmpty(url) || isNullOrEmpty(path)) {
             LOG.error("Not init IM SDK correctly. Do you forget init it?");
             throw new Exception("SDK url or secret lack!");
         }
 
-        String url = RobotHttpUtils.url + path;
+        String url = this.url + path;
         HttpPost post = null;
         try {
-            HttpClient httpClient = HttpClientBuilder.create().build();
-
             int nonce = (int)(Math.random() * 100000 + 3);
             long timestamp = System.currentTimeMillis();
             String str = nonce + "|" + robotSecret + "|" + timestamp;
@@ -63,10 +79,12 @@ public class RobotHttpUtils {
             }
             LOG.info("http request content: {}", jsonStr);
 
-            StringEntity entity = new StringEntity(jsonStr, Charset.forName("UTF-8"));
-            entity.setContentEncoding("UTF-8");
-            entity.setContentType("application/json");
-            post.setEntity(entity);
+            if(!StringUtil.isNullOrEmpty(jsonStr)) {
+                StringEntity entity = new StringEntity(jsonStr, Charset.forName("UTF-8"));
+                entity.setContentEncoding("UTF-8");
+                entity.setContentType("application/json");
+                post.setEntity(entity);
+            }
             HttpResponse response = httpClient.execute(post);
 
             int statusCode = response.getStatusLine().getStatusCode();
@@ -100,16 +118,11 @@ public class RobotHttpUtils {
         }
     }
 
-    private static <T> IMResult<T> fromJsonObject(String content, Class<T> clazz) {
-        Type type = TypeBuilder
-                .newInstance(IMResult.class)
-                .addTypeParam(clazz)
-                .build();
-        return new Gson().fromJson(content, type);
+    public String getRobotId() {
+        return robotId;
     }
 
-    private static boolean isNullOrEmpty(String str) {
-        return str == null || str.isEmpty();
+    public String getRobotSecret() {
+        return robotSecret;
     }
-
 }

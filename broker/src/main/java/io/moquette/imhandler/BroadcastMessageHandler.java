@@ -25,15 +25,22 @@ import static cn.wildfirechat.proto.ProtoConstants.ContentType.Text;
 @Handler(value = IMTopic.BroadcastMessageTopic)
 public class BroadcastMessageHandler extends IMHandler<WFCMessage.Message> {
     @Override
-    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, boolean isAdmin, WFCMessage.Message message, Qos1PublishHandler.IMCallback callback) {
+    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, ProtoConstants.RequestSourceType requestSourceType, WFCMessage.Message message, Qos1PublishHandler.IMCallback callback) {
         ErrorCode errorCode = ErrorCode.ERROR_CODE_SUCCESS;
+        boolean isAdmin = requestSourceType == ProtoConstants.RequestSourceType.Request_From_Admin;
         if (message != null) {
             if (!isAdmin) {  //only admin can broadcast message
                 return ErrorCode.ERROR_CODE_NOT_RIGHT;
             }
 
             long timestamp = System.currentTimeMillis();
-            long messageId = MessageShardingUtil.generateId();
+            long messageId = 0;
+            try {
+                messageId = MessageShardingUtil.generateId();
+            } catch (Exception e) {
+                e.printStackTrace();
+                return ErrorCode.ERROR_CODE_SERVER_ERROR;
+            }
             message = message.toBuilder().setFromUser(fromUser).setMessageId(messageId).setServerTimestamp(timestamp).setConversation(WFCMessage.Conversation.newBuilder().setTarget(fromUser).setLine(message.getConversation().getLine()).setType(ProtoConstants.ConversationType.ConversationType_Private).build()).build();
 
             long count = saveAndBroadcast(fromUser, clientID, message);

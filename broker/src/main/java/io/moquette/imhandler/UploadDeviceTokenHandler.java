@@ -20,18 +20,18 @@ import win.liyufan.im.IMTopic;
 @Handler(IMTopic.UploadDeviceTokenTopic)
 public class UploadDeviceTokenHandler extends IMHandler<WFCMessage.UploadDeviceTokenRequest> {
     @Override
-    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, boolean isAdmin, WFCMessage.UploadDeviceTokenRequest request, Qos1PublishHandler.IMCallback callback) {
+    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, ProtoConstants.RequestSourceType requestSourceType, WFCMessage.UploadDeviceTokenRequest request, Qos1PublishHandler.IMCallback callback) {
             MemorySessionStore.Session session = m_sessionsStore.getSession(clientID);
             session.setPlatform(request.getPlatform());
             session.setAppName(request.getAppName());
             if (request.getPlatform() == ProtoConstants.Platform.Platform_iOS && request.getPushType() == 2) {
                 session.setVoipDeviceToken(request.getDeviceToken());
-//                session.setPushType(0);//如果有voip token，肯定是生产环境的推送
                 m_sessionsStore.updateSessionToken(session, true);
             } else {
                 session.setDeviceToken(request.getDeviceToken());
                 session.setPushType(request.getPushType());
                 m_sessionsStore.updateSessionToken(session, false);
+                m_sessionsStore.cleanDuplatedToken(session.getClientID(), session.getPushType(), session.getDeviceToken(), false, session.getAppName());
             }
 
             return ErrorCode.ERROR_CODE_SUCCESS;

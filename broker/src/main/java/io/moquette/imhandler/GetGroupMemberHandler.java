@@ -8,6 +8,7 @@
 
 package io.moquette.imhandler;
 
+import cn.wildfirechat.proto.ProtoConstants;
 import cn.wildfirechat.proto.WFCMessage;
 import io.moquette.spi.impl.Qos1PublishHandler;
 import io.netty.buffer.ByteBuf;
@@ -22,9 +23,9 @@ import static cn.wildfirechat.common.ErrorCode.ERROR_CODE_SUCCESS;
 @Handler(IMTopic.GetGroupMemberTopic)
 public class GetGroupMemberHandler extends IMHandler<WFCMessage.PullGroupMemberRequest> {
     @Override
-    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, boolean isAdmin, WFCMessage.PullGroupMemberRequest request, Qos1PublishHandler.IMCallback callback) {
+    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, ProtoConstants.RequestSourceType requestSourceType, WFCMessage.PullGroupMemberRequest request, Qos1PublishHandler.IMCallback callback) {
         List<WFCMessage.GroupMember> members = new ArrayList<>();
-        ErrorCode errorCode = m_messagesStore.getGroupMembers(request.getTarget(), request.getHead(), members);
+        ErrorCode errorCode = m_messagesStore.getGroupMembers(fromUser, request.getTarget(), request.getHead(), members);
 
         if (errorCode == ERROR_CODE_SUCCESS) {
             WFCMessage.PullGroupMemberResult result = WFCMessage.PullGroupMemberResult.newBuilder().addAllMember(members).build();

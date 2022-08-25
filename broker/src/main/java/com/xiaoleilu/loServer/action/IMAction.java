@@ -9,15 +9,15 @@
 
 package com.xiaoleilu.loServer.action;
 
+import cn.wildfirechat.proto.ProtoConstants;
 import cn.wildfirechat.proto.WFCMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.xiaoleilu.loServer.annotation.HttpMethod;
 import com.xiaoleilu.loServer.annotation.Route;
 import com.xiaoleilu.loServer.handler.Request;
 import com.xiaoleilu.loServer.handler.Response;
-import io.moquette.persistence.RPCCenter;
+import io.moquette.persistence.ServerAPIHelper;
 import io.moquette.persistence.MemorySessionStore;
-import io.moquette.persistence.TargetEntry;
 import io.moquette.spi.impl.Utils;
 import io.moquette.spi.impl.security.AES;
 import io.moquette.spi.security.Tokenor;
@@ -80,7 +80,7 @@ public class IMAction extends Action {
                 if (userId == null) {
                     sendResponse(response, ErrorCode.ERROR_CODE_TOKEN_ERROR, null);
                 } else {
-                    RPCCenter.getInstance().sendRequest(userId, wrapper.getClientId(), wrapper.getRequest(), wrapper.getData().toByteArray(), userId, TargetEntry.Type.TARGET_TYPE_USER, new RPCCenter.Callback() {
+                    ServerAPIHelper.sendRequest(userId, wrapper.getClientId(), wrapper.getRequest(), wrapper.getData().toByteArray(), new ServerAPIHelper.Callback() {
                         @Override
                         public void onSuccess(byte[] result) {
                             sendResponse(response, null, result);
@@ -102,7 +102,7 @@ public class IMAction extends Action {
                                 ctx.executor().execute(command);
                             };
                         }
-                    }, false);
+                    }, ProtoConstants.RequestSourceType.Request_From_User);
                     return false;
                 }
             } catch (InvalidProtocolBufferException e) {

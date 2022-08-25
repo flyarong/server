@@ -8,12 +8,11 @@
 
 package cn.wildfirechat.push;
 
+import cn.wildfirechat.common.IMExceptionEvent;
 import cn.wildfirechat.proto.ProtoConstants;
-import cn.wildfirechat.proto.WFCMessage;
 import com.google.gson.Gson;
 import io.moquette.persistence.MemorySessionStore;
 import io.moquette.server.config.IConfig;
-import io.moquette.spi.ClientSession;
 import io.moquette.spi.ISessionsStore;
 import io.netty.util.internal.StringUtil;
 import org.slf4j.Logger;
@@ -26,6 +25,7 @@ import java.util.concurrent.Executors;
 
 import static io.moquette.BrokerConstants.PUSH_ANDROID_SERVER_ADDRESS;
 import static io.moquette.BrokerConstants.PUSH_IOS_SERVER_ADDRESS;
+import static win.liyufan.im.HttpUtils.HttpPostType.POST_TYPE_Push;
 
 public class PushServer {
     private static final Logger LOG = LoggerFactory.getLogger(PushServer.class);
@@ -34,6 +34,10 @@ public class PushServer {
         int PUSH_MESSAGE_TYPE_NORMAL = 0;
         int PUSH_MESSAGE_TYPE_VOIP_INVITE = 1;
         int PUSH_MESSAGE_TYPE_VOIP_BYE = 2;
+        int PUSH_MESSAGE_TYPE_FRIEND_REQUEST = 3;
+        int PUSH_MESSAGE_TYPE_VOIP_ANSWER = 4;
+        int PUSH_MESSAGE_TYPE_RECALLED = 5;
+        int PUSH_MESSAGE_TYPE_DELETED = 6;
     }
 
     private static PushServer INSTANCE = new PushServer();
@@ -57,13 +61,13 @@ public class PushServer {
     }
 
     public void pushMessage(PushMessage pushMessage, String deviceId, String pushContent) {
-        LOG.info("try to delivery push diviceId = {}, pushContent", deviceId, pushContent);
+        LOG.info("try to delivery push diviceId = {}, conversationType = {}, pushContent = {}", deviceId, pushMessage.convType, pushContent);
         executorService.execute(() ->{
                 try {
                     pushMessageInternel(pushMessage, deviceId, pushContent);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    Utility.printExecption(LOG, e);
+                    Utility.printExecption(LOG, e, IMExceptionEvent.EventType.PUSH_SERVER_Exception);
                 }
             });
     }
@@ -89,13 +93,14 @@ public class PushServer {
         pushMessage.pushContent = pushContent;
         pushMessage.deviceToken = session.getDeviceToken();
         pushMessage.unReceivedMsg = badge;
+        pushMessage.userId = session.getUsername();
         if (session.getPlatform() == ProtoConstants.Platform.Platform_iOS || session.getPlatform() == ProtoConstants.Platform.Platform_Android) {
             String url = androidPushServerUrl;
             if (session.getPlatform() == ProtoConstants.Platform.Platform_iOS) {
                 url = iOSPushServerUrl;
                 pushMessage.voipDeviceToken = session.getVoipDeviceToken();
             }
-            HttpUtils.httpJsonPost(url, new Gson().toJson(pushMessage, pushMessage.getClass()));
+            HttpUtils.httpJsonPost(url, new Gson().toJson(pushMessage, pushMessage.getClass()), POST_TYPE_Push);
         } else {
             LOG.info("Not mobile platform {}", session.getPlatform());
         }

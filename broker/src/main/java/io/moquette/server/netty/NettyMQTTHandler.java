@@ -70,7 +70,7 @@ public class NettyMQTTHandler extends ChannelInboundHandlerAdapter {
                     m_processor.processPubRel(ctx.channel(), msg);
                     break;
                 case DISCONNECT:
-                    m_processor.processDisconnect(ctx.channel(), msg.fixedHeader().isDup());
+                    m_processor.processDisconnect(ctx.channel(), msg.fixedHeader().isDup(), msg.fixedHeader().isRetain());
                     break;
                 case PUBACK:
                     m_processor.processPubAck(ctx.channel(), (MqttPubAckMessage) msg);
@@ -103,7 +103,7 @@ public class NettyMQTTHandler extends ChannelInboundHandlerAdapter {
         String clientID = NettyUtils.clientID(ctx.channel());
         if (clientID != null && !clientID.isEmpty()) {
             LOG.info("Notifying connection lost event. MqttClientId = {}.", clientID);
-            m_processor.processConnectionLost(clientID, ctx.channel());
+            m_processor.processConnectionLost(clientID, ctx.channel(), false);
         }
         ctx.close();
     }

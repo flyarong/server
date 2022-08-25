@@ -15,10 +15,8 @@ import com.xiaoleilu.loServer.RestResult;
 import com.xiaoleilu.loServer.annotation.HttpMethod;
 import com.xiaoleilu.loServer.annotation.Route;
 import com.xiaoleilu.loServer.handler.Request;
+import cn.wildfirechat.pojos.InputUpdateFriendStatusRequest;
 import com.xiaoleilu.loServer.handler.Response;
-import cn.wildfirechat.pojos.InputFriendRequest;
-import io.moquette.persistence.RPCCenter;
-import io.moquette.persistence.TargetEntry;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -26,8 +24,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.internal.StringUtil;
 import cn.wildfirechat.common.ErrorCode;
 import win.liyufan.im.IMTopic;
-
-import java.util.concurrent.Executor;
 
 @Route(APIPath.Friend_Update_Status)
 @HttpMethod("POST")
@@ -41,45 +37,24 @@ public class FriendRelationAction extends AdminAction {
     @Override
     public boolean action(Request request, Response response) {
         if (request.getNettyRequest() instanceof FullHttpRequest) {
-            InputFriendRequest friendAdd = getRequestBody(request.getNettyRequest(), InputFriendRequest.class);
+            InputUpdateFriendStatusRequest friendAdd = getRequestBody(request.getNettyRequest(), InputUpdateFriendStatusRequest.class);
             if (friendAdd != null
                 && !StringUtil.isNullOrEmpty(friendAdd.getUserId())
                 && !StringUtil.isNullOrEmpty(friendAdd.getFriendUid())
             ) {
-                WFCMessage.HandleFriendRequest friendRequest = WFCMessage.HandleFriendRequest.newBuilder().setTargetUid(friendAdd.getFriendUid()).setStatus(friendAdd.getStatus()).build();
-                RPCCenter.getInstance().sendRequest(friendAdd.getUserId(), null, IMTopic.HandleFriendRequestTopic, friendRequest.toByteArray(), friendAdd.getFriendUid(), TargetEntry.Type.TARGET_TYPE_USER, new RPCCenter.Callback() {
-                    @Override
-                    public void onSuccess(byte[] result) {
-                        ByteBuf byteBuf = Unpooled.buffer();
-                        byteBuf.writeBytes(result);
-                        ErrorCode errorCode = ErrorCode.fromCode(byteBuf.readByte());
-                        if (errorCode == ErrorCode.ERROR_CODE_SUCCESS) {
-                            sendResponse(response, null, null);
-                        } else {
-                            sendResponse(response, errorCode, null);
-                        }
-                    }
-
-                    @Override
-                    public void onError(ErrorCode errorCode) {
-                        sendResponse(response, errorCode, null);
-                    }
-
-                    @Override
-                    public void onTimeout() {
-                        sendResponse(response, ErrorCode.ERROR_CODE_TIMEOUT, null);
-                    }
-
-                    @Override
-                    public Executor getResponseExecutor() {
-                        return command -> ctx.executor().execute(command);
-                    }
-                }, true);
+                WFCMessage.HandleFriendRequest.Builder friendRequestBuilder = WFCMessage.HandleFriendRequest.newBuilder().setTargetUid(friendAdd.getFriendUid()).setStatus(friendAdd.getStatus());
+                if (!StringUtil.isNullOrEmpty(friendAdd.getExtra())) {
+                    friendRequestBuilder = friendRequestBuilder.setExtra(friendAdd.getExtra());
+                }
+                sendApiMessage(response, friendAdd.getUserId(), IMTopic.HandleFriendRequestTopic, friendRequestBuilder.build().toByteArray(), result -> {
+                    ByteBuf byteBuf = Unpooled.buffer();
+                    byteBuf.writeBytes(result);
+                    ErrorCode errorCode = ErrorCode.fromCode(byteBuf.readByte());
+                    return new Result(errorCode);
+                });
                 return false;
             } else {
-                response.setStatus(HttpResponseStatus.OK);
-                RestResult result = RestResult.resultOf(ErrorCode.INVALID_PARAMETER);
-                response.setContent(new Gson().toJson(result));
+                setResponseContent(RestResult.resultOf(ErrorCode.INVALID_PARAMETER), response);
             }
 
         }

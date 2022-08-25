@@ -14,6 +14,7 @@ import cn.wildfirechat.pojos.InputGetGroup;
 import cn.wildfirechat.pojos.OutputGroupMemberList;
 import cn.wildfirechat.pojos.PojoGroupInfo;
 import cn.wildfirechat.pojos.PojoGroupMember;
+import cn.wildfirechat.proto.ProtoConstants;
 import cn.wildfirechat.proto.WFCMessage;
 import com.google.gson.Gson;
 import com.xiaoleilu.loServer.RestResult;
@@ -45,10 +46,8 @@ public class GetGroupMembersAction extends AdminAction {
                 && (!StringUtil.isNullOrEmpty(inputGetGroup.getGroupId()))) {
 
                 List<WFCMessage.GroupMember> members = new ArrayList<>();
-                ErrorCode errorCode = messagesStore.getGroupMembers(inputGetGroup.getGroupId(), 0, members);
+                ErrorCode errorCode = messagesStore.getGroupMembers(null, inputGetGroup.getGroupId(), 0, members);
 
-
-                response.setStatus(HttpResponseStatus.OK);
                 RestResult result;
                 if (errorCode != ErrorCode.ERROR_CODE_SUCCESS) {
                     result = RestResult.resultOf(errorCode);
@@ -56,20 +55,23 @@ public class GetGroupMembersAction extends AdminAction {
                     OutputGroupMemberList out = new OutputGroupMemberList();
                     out.setMembers(new ArrayList<>());
                     for (WFCMessage.GroupMember member : members) {
+                        if (member.getType() == ProtoConstants.GroupMemberType.GroupMemberType_Removed) {
+                            continue;
+                        }
                         PojoGroupMember pm = new PojoGroupMember();
                         pm.setMember_id(member.getMemberId());
                         pm.setAlias(member.getAlias());
                         pm.setType(member.getType());
+                        pm.setExtra(member.getExtra());
+                        pm.setCreateDt(member.getCreateDt());
                         out.getMembers().add(pm);
                     }
                     result = RestResult.ok(out);
                 }
 
-                response.setContent(new Gson().toJson(result));
+                setResponseContent(result, response);
             } else {
-                response.setStatus(HttpResponseStatus.OK);
-                RestResult result = RestResult.resultOf(ErrorCode.INVALID_PARAMETER);
-                response.setContent(new Gson().toJson(result));
+                setResponseContent(RestResult.resultOf(ErrorCode.INVALID_PARAMETER), response);
             }
 
         }

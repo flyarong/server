@@ -8,6 +8,7 @@
 
 package io.moquette.imhandler;
 
+import cn.wildfirechat.proto.ProtoConstants;
 import cn.wildfirechat.proto.WFCMessage;
 import com.qiniu.util.Auth;
 import com.xiaoleilu.loServer.action.UploadFileAction;
@@ -20,7 +21,7 @@ import win.liyufan.im.IMTopic;
 @Handler(IMTopic.GetQiniuUploadTokenTopic)
 public class GetQiniuUploadTokenHandler extends IMHandler<Byte> {
     @Override
-    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, boolean isAdmin, Byte request, Qos1PublishHandler.IMCallback callback) {
+    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, ProtoConstants.RequestSourceType requestSourceType, Byte request, Qos1PublishHandler.IMCallback callback) {
         int type = request;
         String token;
 
@@ -67,6 +68,14 @@ public class GetQiniuUploadTokenHandler extends IMHandler<Byte> {
                     bucketName = MediaServerConfig.QINIU_BUCKET_FAVORITE_NAME;
                     bucketDomain = MediaServerConfig.QINIU_BUCKET_FAVORITE_DOMAIN;
                     break;
+                case 7:
+                    bucketName = MediaServerConfig.QINIU_BUCKET_STICKER_NAME;
+                    bucketDomain = MediaServerConfig.QINIU_BUCKET_STICKER_DOMAIN;
+                    break;
+                case 8:
+                     bucketName = MediaServerConfig.QINIU_BUCKET_MOMENTS_NAME;
+                     bucketDomain = MediaServerConfig.QINIU_BUCKET_MOMENTS_DOMAIN;
+                     break;
                 default:
                     bucketName = MediaServerConfig.QINIU_BUCKET_GENERAL_NAME;
                     bucketDomain = MediaServerConfig.QINIU_BUCKET_GENERAL_DOMAIN;

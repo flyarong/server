@@ -15,10 +15,8 @@ import com.xiaoleilu.loServer.RestResult;
 import com.xiaoleilu.loServer.annotation.HttpMethod;
 import com.xiaoleilu.loServer.annotation.Route;
 import com.xiaoleilu.loServer.handler.Request;
-import com.xiaoleilu.loServer.handler.Response;
 import cn.wildfirechat.pojos.RecallMessageData;
-import io.moquette.persistence.RPCCenter;
-import io.moquette.persistence.TargetEntry;
+import com.xiaoleilu.loServer.handler.Response;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -26,8 +24,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.internal.StringUtil;
 import cn.wildfirechat.common.ErrorCode;
 import win.liyufan.im.IMTopic;
-
-import java.util.concurrent.Executor;
 
 @Route(APIPath.Msg_Recall)
 @HttpMethod("POST")
@@ -45,37 +41,15 @@ public class RecallMessageAction extends AdminAction {
             if (recallMessageData != null && !StringUtil.isNullOrEmpty(recallMessageData.getOperator())) {
 
                 WFCMessage.INT64Buf idBuf = WFCMessage.INT64Buf.newBuilder().setId(recallMessageData.getMessageUid()).build();
-                RPCCenter.getInstance().sendRequest(recallMessageData.getOperator(), null, IMTopic.RecallMessageTopic, idBuf.toByteArray(), recallMessageData.getOperator(), TargetEntry.Type.TARGET_TYPE_USER, new RPCCenter.Callback() {
-                    @Override
-                    public void onSuccess(byte[] result) {
-                        ByteBuf byteBuf = Unpooled.buffer();
-                        byteBuf.writeBytes(result);
-                        ErrorCode errorCode = ErrorCode.fromCode(byteBuf.readByte());
-                        sendResponse(response, errorCode, null);
-                    }
-
-                    @Override
-                    public void onError(ErrorCode errorCode) {
-                        sendResponse(response, errorCode, null);
-                    }
-
-                    @Override
-                    public void onTimeout() {
-                        sendResponse(response, ErrorCode.ERROR_CODE_TIMEOUT, null);
-                    }
-
-                    @Override
-                    public Executor getResponseExecutor() {
-                        return command -> {
-                            ctx.executor().execute(command);
-                        };
-                    }
-                }, true);
+                sendApiMessage(response, recallMessageData.getOperator(), IMTopic.RecallMessageTopic, idBuf.toByteArray(), result -> {
+                    ByteBuf byteBuf = Unpooled.buffer();
+                    byteBuf.writeBytes(result);
+                    ErrorCode errorCode = ErrorCode.fromCode(byteBuf.readByte());
+                    return new Result(errorCode);
+                });
                 return false;
             } else {
-                response.setStatus(HttpResponseStatus.OK);
-                RestResult result = RestResult.resultOf(ErrorCode.INVALID_PARAMETER);
-                response.setContent(new Gson().toJson(result));
+                setResponseContent(RestResult.resultOf(ErrorCode.INVALID_PARAMETER), response);
             }
         }
         return true;

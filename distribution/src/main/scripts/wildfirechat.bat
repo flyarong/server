@@ -1,12 +1,11 @@
 @ECHO OFF
 
 set "CURRENT_DIR=%cd%"
-if not "%WILDFIRECHAT_HOME%" == "" goto gotHome
 set "WILDFIRECHAT_HOME=%CURRENT_DIR%"
 if exist "%WILDFIRECHAT_HOME%\bin\wildfirechat.bat" goto okHome
 cd ..
 set "WILDFIRECHAT_HOME=%cd%"
-cd "%CURRENT_DIR%"
+set "CURRENT_DIR=%cd%"
 :gotHome
 if exist "%WILDFIRECHAT_HOME%\bin\wildfirechat.bat" goto okHome
     echo The WILDFIRECHAT_HOME environment variable is not defined correctly
@@ -17,9 +16,9 @@ goto end
 rem Set JavaHome if it exists
 if exist { "%JAVA_HOME%\bin\java" } (
     set "JAVA="%JAVA_HOME%\bin\java""
-) else (
+) else {
     set "JAVA="java""
-)
+}
 
 echo Using JAVA_HOME:       "%JAVA_HOME%"
 echo Using WILDFIRECHAT_HOME:   "%WILDFIRECHAT_HOME%"
@@ -29,7 +28,7 @@ rem  set LOG_FILE_LEVEL=fine
 set JAVA_OPTS=
 set JAVA_OPTS_SCRIPT=-XX:+HeapDumpOnOutOfMemoryError -Djava.awt.headless=true
 set WILDFIRECHAT_PATH=%WILDFIRECHAT_HOME%
-set LOG_FILE=%WILDFIRECHAT_HOME%\config\log4j.properties
+set LOG_FILE=%WILDFIRECHAT_HOME%\config\log4j2.xml
 set HZ_CONF_FILE=%WILDFIRECHAT_HOME%\config\hazelcast.xml
 set C3P0_CONF_FILE=%WILDFIRECHAT_HOME%\config\c3p0-config.xml
 
@@ -73,4 +72,11 @@ rem set JAVA_OPTS=%JAVA_OPTS% -XX:+UseGCLogFileRotation
 rem set JAVA_OPTS=%JAVA_OPTS% -XX:NumberOfGCLogFiles=10
 rem set JAVA_OPTS=%JAVA_OPTS% -XX:GCLogFileSize=10M"
 
-%JAVA% -server %JAVA_OPTS% %JAVA_OPTS_SCRIPT% -Dlog4j.configuration=file:%LOG_FILE% -Dcom.mchange.v2.c3p0.cfg.xml=%C3P0_CONF_FILE% -Dhazelcast.configuration=file:%HZ_CONF_FILE% -Dwildfirechat.path=%WILDFIRECHAT_PATH% -cp %WILDFIRECHAT_HOME%\lib\* cn.wildfirechat.server.Server
+echo
+echo 请设置JVM参数Xmx和Xms！！！
+echo
+
+rem set JAVA_OPTS=%JAVA_OPTS% -Xmx2G
+rem set JAVA_OPTS=%JAVA_OPTS% -Xms2G
+
+%JAVA% -server %JAVA_OPTS% %JAVA_OPTS_SCRIPT% -Dlog4j.configurationFile=%LOG_FILE% -Dcom.mchange.v2.c3p0.cfg.xml=%C3P0_CONF_FILE% -Dhazelcast.configuration=file:%HZ_CONF_FILE% -Dwildfirechat.path=%WILDFIRECHAT_PATH% -cp %WILDFIRECHAT_HOME%\lib\* cn.wildfirechat.server.Server

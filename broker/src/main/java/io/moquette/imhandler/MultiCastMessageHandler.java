@@ -29,14 +29,21 @@ public class MultiCastMessageHandler extends IMHandler<WFCMessage.MultiCastMessa
 
 
     @Override
-    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, boolean isAdmin, WFCMessage.MultiCastMessage multiCastMessage, Qos1PublishHandler.IMCallback callback) {
+    public ErrorCode action(ByteBuf ackPayload, String clientID, String fromUser, ProtoConstants.RequestSourceType requestSourceType, WFCMessage.MultiCastMessage multiCastMessage, Qos1PublishHandler.IMCallback callback) {
+        boolean isAdmin = requestSourceType == ProtoConstants.RequestSourceType.Request_From_Admin;
         ErrorCode errorCode = ErrorCode.ERROR_CODE_SUCCESS;
         if (!isAdmin) {
             return ErrorCode.ERROR_CODE_NOT_RIGHT;
         }
 
         long timestamp = System.currentTimeMillis();
-        long messageId = MessageShardingUtil.generateId();
+        long messageId = 0;
+        try {
+            messageId = MessageShardingUtil.generateId();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ErrorCode.ERROR_CODE_SERVER_ERROR;
+        }
         WFCMessage.Message message = WFCMessage.Message.newBuilder()
             .setContent(multiCastMessage.getContent())
             .setConversation(WFCMessage.Conversation.newBuilder().setTarget(fromUser).setType(ConversationType_Private).setLine(multiCastMessage.getLine()).build())

@@ -131,7 +131,8 @@ public class UploadFileAction extends Action {
                 }
 
                 readHttpDataChunkByChunk(response, decoder, requestId, HttpHeaders.isKeepAlive(request));
-
+                decoder.destroy();
+                
                 if (chunk instanceof LastHttpContent) {
 
                 }
@@ -201,7 +202,7 @@ public class UploadFileAction extends Action {
                     return false;
                 }
 
-                if (remoteFileSize > 50 * 1024 * 1024) {
+                if (remoteFileSize > 200 * 1024 * 1024) {
                     logger.warn("file over limite!(" + remoteFileSize + ")");
                     response.setStatus(HttpResponseStatus.BAD_REQUEST);
                     response.setContent("file over limite!");
@@ -254,7 +255,7 @@ public class UploadFileAction extends Action {
                 }
 
 
-                String filePath = dir + "/" + requestId;
+                String filePath = dir + "/" + (StringUtil.isNullOrEmpty(remoteFileName) ? requestId : remoteFileName);
                 logger.info("the file path is " + filePath);
 
                 File tmpFile = new File(filePath);
@@ -279,7 +280,7 @@ public class UploadFileAction extends Action {
                             fileUpload.release();
 
                             response.setStatus(HttpResponseStatus.OK);
-                            String relativePath = datePath + "/" +  requestId;
+                            String relativePath = datePath + "/" +  (StringUtil.isNullOrEmpty(remoteFileName) ? requestId : remoteFileName);
                             response.setContent("{\"key\":\"" + relativePath + "\"}");
                             break;
                         }

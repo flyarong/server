@@ -35,6 +35,7 @@ public class FileAction extends Action {
 
     @Override
     public boolean action(Request request, Response response) {
+        response.setHeader("Access-Control-Allow-Origin", "*");
         if (false == Request.METHOD_GET.equalsIgnoreCase(request.getMethod())) {
             response.sendError(HttpResponseStatus.METHOD_NOT_ALLOWED, "Please use GET method to request file!");
             return true;
@@ -45,21 +46,28 @@ public class FileAction extends Action {
             return true;
         }
 
-        final File file = getFileByPath(request.getPath());
-        Logger.debug("Client [{}] get file [{}]", request.getIp(), file.getPath());
+        File file = null;
+        try {
+            file = getFileByPath(request.getPath());
+        } catch (Exception e) {
+            response.sendError(HttpResponseStatus.NOT_FOUND, "404 File not found!");
+            return true;
+        }
 
-        // 隐藏文件，跳过
-        if (file.isHidden() || !file.exists()) {
+        // 隐藏文件或不存在，跳过
+        if (file == null || file.isHidden() || !file.exists()) {
             response.sendError(HttpResponseStatus.NOT_FOUND, "404 File not found!");
             return true;
         }
 
         // 非文件，跳过
-        if (false == file.isFile()) {
+        if (!file.isFile()) {
             response.sendError(HttpResponseStatus.FORBIDDEN, "403 Forbidden!");
             return true;
         }
 
+        Logger.debug("Client [{}] get file [{}]", request.getIp(), file.getPath());
+        
         // Cache Validation
         String ifModifiedSince = request.getHeader(HttpHeaderNames.IF_MODIFIED_SINCE.toString());
         if (StrUtil.isNotBlank(ifModifiedSince)) {
@@ -108,7 +116,8 @@ public class FileAction extends Action {
 		}
 
 		// 路径安全检查
-		if (httpPath.contains("/.") || httpPath.contains("./") || httpPath.charAt(0) == '.' || httpPath.charAt(httpPath.length() - 1) == '.' || ReUtil.isMatch(INSECURE_URI, httpPath)) {
+        String path = httpPath.substring(0, httpPath.lastIndexOf("/"));
+		if (path.contains("/.") || path.contains("./") || ReUtil.isMatch(INSECURE_URI, path)) {
 			return null;
 		}
 
